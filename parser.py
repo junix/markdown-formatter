@@ -90,7 +90,6 @@ class Seq(Rule):
     def __repr__(self):
         return f"Seq({','.join(str(r) for r in self.rules)})"
 
-
 s = "abc"
 rule = Seq(OneOrMore(Or('a', 'b', 'c')), 'b')
 for s in rule.execute(s):
