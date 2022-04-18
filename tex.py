@@ -59,6 +59,7 @@ cmd2symbol = {
     "nabla": "∇",
     "intercal": "⊺",
     "cdots": "⋯",
+    "checkmark":"✓",
     # user defined symbol
     "note": '<span style="color: red">✍</span>'
 }

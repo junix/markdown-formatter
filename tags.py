@@ -10,7 +10,8 @@ sym_tags = (
     ["QU", "Query理解", "查询理解"],
     ["information theory", "information-theory", "informationtheory", "信息论"],
     ["deep-learning", "深度学习", "deeplearning"],
-    ['lex', '分词']
+    ['lex', '分词'],
+    ['最大熵','最大熵模型', 'MEM'],
 )
 
 

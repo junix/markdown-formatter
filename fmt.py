@@ -41,12 +41,15 @@ def contain_hans(str):
 
 def format_content(lines, relabel=True):
     for line in lines:
-        if line.text_type in (LineType.Code, LineType.Title):
-            continue
-
-        segs = line.to_segments()
+        segs = []
+        for s in line.to_segments():
+            if isinstance(s, ImgSeg):
+                segs.append(s.to_html_tag_seg())
+            else:
+                segs.append(s)
         for seg in segs:
-            if isinstance(seg, (CodeSeg, TagSeg)):
+            print(seg)
+            if isinstance(seg, (CodeSeg, TagSeg, TitleSeg)):
                 continue
 
             x = seg.text
@@ -86,8 +89,8 @@ def main():
     to_fmts = options.file or args or [find_the_latest_modified_markdown_file(os.getcwd())]
     for file in to_fmts:
         lines = list(parse_to_lines(read_file(file)))
-        for l in lines:
-            print(l)
+        # for l in lines:
+        #     print(l)
         lines = format_content(lines, relabel=options.relabel)
         tags = seek_tags(lines)
         content = '\n'.join([x.text for x in lines])

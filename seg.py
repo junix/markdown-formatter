@@ -11,6 +11,9 @@ class Segment:
     def format(self):
         pass
 
+    def __repr__(self):
+        return f"{type(self).__name__}({self.text})"
+
 
 formula_pattern = re.compile(r'^([$]*)(.*?)([$]*)$')
 
@@ -18,9 +21,6 @@ formula_pattern = re.compile(r'^([$]*)(.*?)([$]*)$')
 class FormulaSeg(Segment):
     def __init__(self, text):
         super().__init__(text)
-
-    def __repr__(self):
-        return f'FormulaSeg({self.text})'
 
     @classmethod
     def expect(cls, text):
@@ -46,9 +46,6 @@ class CodeSeg(Segment):
     def __init__(self, text):
         super().__init__(text)
 
-    def __repr__(self):
-        return f'CodeSeg({self.text})'
-
     @classmethod
     def expect(cls, text):
         if text[:1] != '`':
@@ -59,31 +56,51 @@ class CodeSeg(Segment):
         return CodeSeg(seg), text[len(seg):]
 
 
+class TitleSeg(Segment):
+    def __init__(self, text):
+        super().__init__(text)
+
+
 class TextSeg(Segment):
     def __init__(self, text):
         super().__init__(text)
 
-    def __repr__(self):
-        return f'TextSeg({self.text})'
+
+class RefSeg(Segment):
+    def __init__(self, text, caption=None, link=None):
+        super().__init__(text)
+        self.caption = caption
+        self.link = link
+
+    @classmethod
+    def expect(cls, code):
+        from strs import match_str, match_re
+        line = code
+        try:
+            _, code = match_str(code, '[')
+            caption = seek_util(code, ']')
+            if caption:
+                code = code[len(caption):]
+                caption = caption[:-1]
+            _, code = match_str(code, '(')
+            link = seek_util(code, ')')
+            if link:
+                code = code[len(link):]
+                link = link[:-1]
+            text = line if not code else line[:-len(code)]
+            ref = RefSeg(text, caption=caption, link=link)
+            return ref, code
+        except:
+            return None
 
 
 class TagSeg(Segment):
     def __init__(self, text):
         super().__init__(text)
 
-    def __repr__(self):
-        return f'TagSeg({self.text})'
-
     @classmethod
     def expect(cls, text):
         from htmls import seek_html_tag
-        # img -> zoom html mark
-        rs = parse_img(text)
-        if rs:
-            src = rs['src']
-            ratio = calc_zoom_ratio(src, max_height=200)
-            return TagSeg(to_html_img(src, rs['alt'], ratio)), rs['remain']
-
         if text[:1] != '<':
             return None
         seg = seek_html_tag(text)
@@ -92,10 +109,33 @@ class TagSeg(Segment):
         return TagSeg(seg), text[len(seg):]
 
 
+class ImgSeg(Segment):
+    def __init__(self, text, caption=None, link=None):
+        super().__init__(text)
+        self.caption = caption
+        self.link = link
+
+    def to_html_tag_seg(self):
+        return TagSeg(f'<img src="{self.link}" alt="{self.caption}" style="zoom:{100}%;"/>')
+
+    @classmethod
+    def expect(cls, code):
+        from strs import match_str
+        line = code
+        try:
+            _, code = match_str(code, '!')
+            ref, code = RefSeg.expect(code)
+            ref = ImgSeg('!' + ref.text, caption=ref.caption, link=ref.link)
+            return ref, code
+        except:
+            return None
+
+
 def parse_to_segs(line: str) -> Iterable[Segment]:
     text = []
     while line:
-        rs = FormulaSeg.expect(line) or CodeSeg.expect(line) or TagSeg.expect(line)
+        rs = FormulaSeg.expect(line) or CodeSeg.expect(line) or ImgSeg.expect(line) or TagSeg.expect(
+            line) or RefSeg.expect(line)
         if rs is not None:
             if text:
                 yield TextSeg(''.join(text))
@@ -110,56 +150,29 @@ def parse_to_segs(line: str) -> Iterable[Segment]:
         yield TextSeg(''.join(text))
 
 
-def parse_img(s):
-    if len(s) < 5:
-        return None
-    if s[:2] != '![':
-        return None
-    s = s[2:]
-    alt = seek_util(s, ']')
-    if alt is None:
-        return None
-    s = s[len(alt):]
-    alt = alt[:-1]
-    if s[:1] != '(':
-        return None
-    s = s[1:]
-    url = seek_util(s, ')')
-    if url is None:
-        return None
-    s = s[len(url):]
-    url = url[:-1]
-    return {
-        'alt': alt,
-        'src': url,
-        'remain': s
-    }
-
-
-def to_html_img(src, alt, zoom=100):
-    return f'<img src="{src}" alt="{alt}" style="zoom:{int(zoom)}%;"/>'
-
-
 def join_segs(*segs):
     texts = [s.text.rstrip() if index == 0 else s.text.strip() for index, s in enumerate(segs)]
     return ''.join(texts)
 
 
-def expect_italic_mark(s):
-    if len(s) <= 2:
+def extract_bold_italic(code):
+    if code[:1] != '*' or code[1:2] in ' *':
         return None
-    if s[0] != '*'
-    ...
+
+    # print(m)
+
 
 if __name__ == '__main__':
     # s = "v\\$ok$f(x)$k`\\'o`k"
-    s = "  假设  $f(x)$  具有二阶连![img](http://a.b.c)续偏导数，若第$k$ 次迭代值为$x^{(k)}$, 则可将$f(x)$ 在$x^{(k)}$ 附近进行二阶<ok>泰勒展开:"
-    segs = list(parse_to_segs(s))
-    print(s)
-    for s in segs:
-        print(s)
-    # s = "![img](http://a.b.c)续偏导数，若第$k$ "
-    # v = parse_img(s)
+    # s = "  假设  $f(x)$  具有二阶连![img](http://a.b.c)续偏导数，若第$k$ 次迭代值为$x^{(k)}$, 则可将$f(x)$ 在$x^{(k)}$ 附近进行二阶<ok>泰勒展开:"
+    # segs = list(parse_to_segs(s))
+    # print(s)
+    # for s in segs:
+    #     print(s)
+    s = "![img](http://a.b.c)续偏导数，若第$k$ "
+    v, code = ImgSeg.expect(s)
+    print(v)
+    print(v.to_html_tag_seg())
     # print(v)
     # for s in segs:
     #     print(s)
@@ -168,3 +181,12 @@ if __name__ == '__main__':
     # s = FormulaSeg(s)
     # s.format()
     # print(s.text)
+
+    # s = "*ok*"
+    # print(extract_bold_italic(s))
+    #
+    # print(CodeSeg("code"))
+
+    # s = "[asdf](https://blog.tsingjyujing.com/ml/recsys/ranknet) ok"
+    s = "[随想： BPR Loss与Hinger Loss](https://zhuanlan.zhihu.com/p/166432329)"
+    print(RefSeg.expect(s))

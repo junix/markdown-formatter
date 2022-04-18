@@ -33,6 +33,8 @@ class Line:
         return self.text + '\n' if self.has_new_line else self.text
 
     def to_segments(self):
+        if self.text_type == LineType.Title:
+            return [TitleSeg(self.text)]
         if self.text_type in (LineType.Code, LineType.CodeEnd):
             return [CodeSeg(self.text)]
         if self.text_type in (LineType.Formulation, LineType.FormulationEnd):
@@ -46,7 +48,7 @@ class Line:
 
 
 _code_block = re.compile(r'^ *```')
-_code_block_beg = re.compile(r'^ *```(?:python|text|java|bash|shell)')
+_code_block_beg = re.compile(r'^ *```(?:python|text|java|bash|shell|matlab)')
 
 _tags_pattern = re.compile(r'^[>$]?\s*(?:tags|标签)[：:](.*)[$]?$')
 _tags_delim = re.compile(r'[,，;；、]+')
@@ -108,8 +110,11 @@ def parse_to_lines(text: str) -> Iterable[Line]:
             if match:
                 level = len(match.group(1))
                 title = match.group(2).strip()
+                suffix = ' ' + '#' * level
+                if title.endswith(suffix):
+                    title = title[:-len(suffix)]
                 # title = trim_internal_title_seq_no(title)
-                l = Line(text=line, text_type=LineType.Title)
+                l = Line(text='#' * level + ' ' + title, text_type=LineType.Title)
                 setattr(l, 'level', level)
                 setattr(l, 'title', title)
                 yield l
@@ -325,8 +330,21 @@ def remark_title_seq_no(lines):
         line.text = f"{'#' * level} {title.strip()}"
 
 
+def expect_title(line):
+    try:
+        level, remain = expect('^#{1,6}', line)
+        c0, remain = expect('[^#]', remain)
+        while expect(f' {level}$', remain):
+            remain = remain[:-len(level)-1]
+        return level + c0 + remain, ""
+    except:
+        return None
+
+
 if __name__ == '__main__':
-    s = "![img](https://pic3.zhimg.com/80/v2-98fabeb9dd830221dc29b2f9e1ee1056_1440w.jpg)good"
-    r = parse_img(s)
-    print(r)
-    print(to_html_img(r["src"], r["alt"]))
+    # s = "![img](https://pic3.zhimg.com/80/v2-98fabeb9dd830221dc29b2f9e1ee1056_1440w.jpg)good"
+    # r = parse_img(s)
+    # print(r)
+    # print(to_html_img(r["src"], r["alt"]))
+    s = "##ok ## ##"
+    print(expect_title(s))
