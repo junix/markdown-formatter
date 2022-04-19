@@ -144,11 +144,21 @@ def join_segs(*segs):
     return ''.join(texts)
 
 
-def extract_bold_italic(code):
-    if code[:1] != '*' or code[1:2] in ' *':
+def extract_italic(code):
+    matcher = Matcher(code)
+    try:
+        c, _ = matcher.match('*')
+        prev, _ = matcher.match(Reg(r'^[^ *]'))
+        while True:
+            c, _ = matcher.match(Reg(r'\\.'), Reg(r'.'))
+            if c == '*':
+                if prev == ' ' or matcher.peek() == '*':
+                    return None
+                return matcher
+            else:
+                prev = c
+    except Exception as e:
         return None
-
-    # print(m)
 
 
 if __name__ == '__main__':
@@ -158,11 +168,11 @@ if __name__ == '__main__':
     # print(s)
     # for s in segs:
     #     print(s)
-    s = "![img](http://a.b.c)续偏导数，若第$k$ "
-    v, code = ImgSeg.expect(s)
-    print(v)
-    print(code)
-    print(v.to_html_tag_seg())
+    # s = "![img](http://a.b.c)续偏导数，若第$k$ "
+    # v, code = ImgSeg.expect(s)
+    # print(v)
+    # print(code)
+    # print(v.to_html_tag_seg())
     # print(v)
     # for s in segs:
     #     print(s)
@@ -178,5 +188,8 @@ if __name__ == '__main__':
     # print(CodeSeg("code"))
 
     # s = "[asdf](https://blog.tsingjyujing.com/ml/recsys/ranknet) ok"
-    s = "[随想： BPR Loss与Hinger Loss](https://zhuanlan.zhihu.com/p/166432329)"
-    print(RefSeg.expect(s))
+    # s = "[随想： BPR Loss与Hinger Loss](https://zhuanlan.zhihu.com/p/166432329)"
+    # print(RefSeg.expect(s))
+
+    s = "*ok g**"
+    print(extract_italic(s))

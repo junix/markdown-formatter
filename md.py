@@ -1,8 +1,9 @@
 from collections import defaultdict
 from enum import Enum
-from seg import *
+
 from conv import *
 from htmls import strip_html_tags
+from seg import *
 
 
 class LineType(Enum):
@@ -69,7 +70,8 @@ def parse_to_lines(text: str) -> Iterable[Line]:
     prev_type = LineType.Text
 
     lines = re.split(r'[\r\n]', regular_char(text))
-    lines = '\n'.join([convert_to_latex_formula(x, False, False) for x in lines])
+    lines = '\n'.join([convert_to_latex_formula(x, False, False)
+                      for x in lines])
     lines = re.split(r'[\r\n]', lines)
     for line in lines:
         if prev_type == LineType.Code:
@@ -78,12 +80,12 @@ def parse_to_lines(text: str) -> Iterable[Line]:
             seg = expect_formula_end(line) or Line(line, LineType.Formulation)
         else:
             seg = expect_code(line) or \
-                  expect_formula(line) or \
-                  expect_title(line) or \
-                  expect_blockquote(line) or \
-                  expect_tag(line) or \
-                  expect_html(line) or \
-                  Line(text=line, text_type=LineType.Text)
+                expect_formula(line) or \
+                expect_title(line) or \
+                expect_blockquote(line) or \
+                expect_tag(line) or \
+                expect_html(line) or \
+                Line(text=line, text_type=LineType.Text)
         yield seg
         prev_type = seg.text_type
 
@@ -177,9 +179,12 @@ def remove_zhihu_redirect_url(line):
 
 
 def remove_space(text):
-    text = re.sub(r'(?<=[\u3400-\u4DBF\u4E00-\u9FFF]) (?=[a-zA-Z0-9])', '', text)
-    text = re.sub(r'(?<=[a-zA-Z0-9]) (?=[\u3400-\u4DBF\u4E00-\u9FFF])', '', text)
-    text = re.sub(r'(?<=[\u3400-\u4DBF\u4E00-\u9FFF]) (?=[\u3400-\u4DBF\u4E00-\u9FFF])', '', text)
+    text = re.sub(
+        r'(?<=[\u3400-\u4DBF\u4E00-\u9FFF]) (?=[a-zA-Z0-9])', '', text)
+    text = re.sub(
+        r'(?<=[a-zA-Z0-9]) (?=[\u3400-\u4DBF\u4E00-\u9FFF])', '', text)
+    text = re.sub(
+        r'(?<=[\u3400-\u4DBF\u4E00-\u9FFF]) (?=[\u3400-\u4DBF\u4E00-\u9FFF])', '', text)
     text = re.sub(r'(?<=[，。()])\s+', '', text)
     text = re.sub(r' (?=[，。（）()])', '', text)
     return text
@@ -203,7 +208,8 @@ def regular_quote(text):
     return text
 
 
-_internal_title_seq_no_pattern = re.compile(r'^([⓿❶-❿⓫-⓴①-⑳⓵-⓾ⓐ-ⓩ㊀-㊉]|\d(\.\d)+|(\d\.)+|[一二三四五六七八九十\d]+[、])')
+_internal_title_seq_no_pattern = re.compile(
+    r'^([⓿❶-❿⓫-⓴①-⑳⓵-⓾ⓐ-ⓩ㊀-㊉]|\d(\.\d)+|(\d\.)+|[一二三四五六七八九十\d]+[、])')
 
 
 def trim_internal_title_seq_no(text):
