@@ -1,8 +1,6 @@
-import string
 from abc import ABC
 from io import StringIO
 from html.parser import HTMLParser
-from strs import seek_util
 
 
 class MLStripper(HTMLParser, ABC):
@@ -45,43 +43,6 @@ class TagParser(HTMLParser, ABC):
 
     def handle_comment(self, data):
         self.segments.append(("comment", data))
-
-
-def seek_html_tag2(text: str):
-    if text[:1] != '<':
-        return None
-
-    acc, text = text[:1], text[1:]
-    if not text:
-        return None
-    if text[0] == '/':
-        acc += text[0]
-        text = text[1:]
-    if not text or text[0] not in string.ascii_letters:
-        return None
-    acc += text[0]
-    text = text[1:]
-
-    while text:
-        c = text[0]
-        text = text[1:]
-        acc += c
-        if c in "<\\":
-            return None
-        elif c == '>':
-            return acc
-        elif c == '/':
-            if acc[1] == '/':
-                return None
-            if text[0] != '>':
-                return None
-        elif c in '"\'':
-            seg = seek_util(text, c)
-            if not seg:
-                return None
-            acc += seg
-            text = text[len(seg):]
-    return None
 
 
 def seek_html_tag(text: str):

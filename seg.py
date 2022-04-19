@@ -1,7 +1,5 @@
 from typing import Iterable
-import re
-from strs import *
-from img import *
+from matcher import *
 
 
 class Segment:
@@ -24,12 +22,10 @@ class FormulaSeg(Segment):
 
     @classmethod
     def expect(cls, text):
-        if text[:1] != '$':
+        matcher = Matcher(text)
+        if not matcher.match_pair('$'):
             return None
-        seg = seek_pair(text, '$')
-        if not seg:
-            return None
-        return FormulaSeg(seg), text[len(seg):]
+        return FormulaSeg(matcher.captured), matcher.remain
 
     def format(self):
         from tex import regularize_formula
@@ -48,12 +44,10 @@ class CodeSeg(Segment):
 
     @classmethod
     def expect(cls, text):
-        if text[:1] != '`':
+        matcher = Matcher(text)
+        if not matcher.match_pair('`'):
             return None
-        seg = seek_pair(text, '`')
-        if not seg:
-            return None
-        return CodeSeg(seg), text[len(seg):]
+        return CodeSeg(matcher.captured), matcher.remain
 
 
 class TitleSeg(Segment):
@@ -74,24 +68,22 @@ class RefSeg(Segment):
 
     @classmethod
     def expect(cls, code):
-        from strs import match_str, match_re
-        line = code
-        try:
-            _, code = match_str(code, '[')
-            caption = seek_util(code, ']')
-            if caption:
-                code = code[len(caption):]
-                caption = caption[:-1]
-            _, code = match_str(code, '(')
-            link = seek_util(code, ')')
-            if link:
-                code = code[len(link):]
-                link = link[:-1]
-            text = line if not code else line[:-len(code)]
-            ref = RefSeg(text, caption=caption, link=link)
-            return ref, code
-        except:
+        matcher = Matcher(code)
+        if not matcher.match('['):
             return None
+
+        m = matcher.match_util(']')
+        if not m:
+            return None
+        caption = m[0][:-1]
+        if not matcher.match('('):
+            return None
+        m = matcher.match_util(')')
+        if not m:
+            return None
+        link = m[0][:-1]
+        ref = RefSeg(matcher.captured, caption=caption, link=link)
+        return ref, matcher.remain
 
 
 class TagSeg(Segment):
@@ -120,15 +112,12 @@ class ImgSeg(Segment):
 
     @classmethod
     def expect(cls, code):
-        from strs import match_str
-        line = code
-        try:
-            _, code = match_str(code, '!')
-            ref, code = RefSeg.expect(code)
-            ref = ImgSeg('!' + ref.text, caption=ref.caption, link=ref.link)
-            return ref, code
-        except:
+        matcher = Matcher(code)
+        if not matcher.match('!'):
             return None
+        ref, remain = RefSeg.expect(matcher.remain)
+        ref = ImgSeg('!' + ref.text, caption=ref.caption, link=ref.link)
+        return ref, remain
 
 
 def parse_to_segs(line: str) -> Iterable[Segment]:
@@ -172,6 +161,7 @@ if __name__ == '__main__':
     s = "![img](http://a.b.c)续偏导数，若第$k$ "
     v, code = ImgSeg.expect(s)
     print(v)
+    print(code)
     print(v.to_html_tag_seg())
     # print(v)
     # for s in segs:

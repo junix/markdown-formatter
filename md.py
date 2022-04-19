@@ -1,8 +1,3 @@
-import os
-import re
-from urllib.parse import unquote
-from typing import Iterable
-from itertools import takewhile, dropwhile
 from collections import defaultdict
 from enum import Enum
 from seg import *
@@ -24,7 +19,7 @@ class LineType(Enum):
 
 
 class Line:
-    def __init__(self, text, text_type=LineType.Text, has_new_line=False):
+    def __init__(self, text: str, text_type: LineType = LineType.Text, has_new_line=False):
         self.text = text
         self.text_type = text_type
         self.has_new_line = has_new_line
@@ -53,16 +48,6 @@ _code_block_beg = re.compile(r'^ *```(?:python|text|java|bash|shell|matlab)')
 _tags_pattern = re.compile(r'^[>$]?\s*(?:tags|标签)[：:](.*)[$]?$')
 _tags_delim = re.compile(r'[,，;；、]+')
 
-_title_pattern = re.compile(r'^ *(#{1,6})\s+(.*)$')
-
-
-def strip_md_tags(text):
-    ...
-
-
-def _is_block_formula_mark(line):
-    return line.strip() == '$$'
-
 
 def extract_tags(line):
     t = line.lower()
@@ -88,129 +73,84 @@ def parse_to_lines(text: str) -> Iterable[Line]:
     lines = re.split(r'[\r\n]', lines)
     for line in lines:
         if prev_type == LineType.Code:
-            if _code_block.search(line):
-                yield Line(line, LineType.CodeEnd)
-                prev_type = LineType.CodeEnd
-            else:
-                yield Line(line, LineType.Code)
+            seg = expect_code_end(line) or Line(line, LineType.Code)
         elif prev_type == LineType.Formulation:
-            if line.strip() == '$$':
-                yield Line(line, LineType.FormulationEnd)
-                prev_type = LineType.FormulationEnd
-            else:
-                yield Line(line, LineType.Formulation)
-        elif _code_block.search(line) or _code_block_beg.search(line):
-            yield Line(line, LineType.Code)
-            prev_type = LineType.Code
-        elif line.strip() == '$$':
-            yield Line(text=line, text_type=LineType.Formulation)
-            prev_type = LineType.Formulation
+            seg = expect_formula_end(line) or Line(line, LineType.Formulation)
         else:
-            match = _title_pattern.search(line)
-            if match:
-                level = len(match.group(1))
-                title = match.group(2).strip()
-                suffix = ' ' + '#' * level
-                if title.endswith(suffix):
-                    title = title[:-len(suffix)]
-                # title = trim_internal_title_seq_no(title)
-                l = Line(text='#' * level + ' ' + title, text_type=LineType.Title)
-                setattr(l, 'level', level)
-                setattr(l, 'title', title)
-                yield l
-                prev_type = LineType.Title
-                continue
-
-            if line.strip().startswith('>'):
-                l = Line(text=line, text_type=LineType.BlockQuote)
-                yield l
-                prev_type = LineType.BlockQuote
-                continue
-
-            tags = extract_tags(line)
-            if tags:
-                l = Line(text=line, text_type=LineType.Tag)
-                setattr(l, 'tags', tags)
-                yield l
-                prev_type = LineType.Tag
-                continue
-
-            if len(line.strip()) > 10 and len(strip_html_tags(line.strip())) < 2:
-                l = Line(text=line, text_type=LineType.Html)
-                yield l
-                prev_type = LineType.Html
-                continue
-
-            l = Line(line, LineType.Text)
-            yield l
-            prev_type = LineType.Text
+            seg = expect_code(line) or \
+                  expect_formula(line) or \
+                  expect_title(line) or \
+                  expect_blockquote(line) or \
+                  expect_tag(line) or \
+                  expect_html(line) or \
+                  Line(text=line, text_type=LineType.Text)
+        yield seg
+        prev_type = seg.text_type
 
 
-def parse_to_segments(text: str) -> Iterable[Line]:
-    prev_type = LineType.Text
-
-    lines = re.split(r'[\r\n]', regular_char(text))
-    lines = '\n'.join([convert_to_latex_formula(x, False, False) for x in lines])
-    lines = re.split(r'[\r\n]', lines)
-    for line in lines:
-        if prev_type == LineType.Code:
-            if _code_block.search(line):
-                yield Line(line, LineType.CodeEnd)
-                prev_type = LineType.CodeEnd
-            else:
-                yield Line(line, LineType.Code)
-        elif prev_type == LineType.Formulation:
-            if line.strip() == '$$':
-                yield Line(line, LineType.FormulationEnd)
-                prev_type = LineType.FormulationEnd
-            else:
-                yield Line(line, LineType.Formulation)
-        elif _code_block.search(line) or _code_block_beg.search(line):
-            yield Line(line, LineType.Code)
-            prev_type = LineType.Code
-        elif line.strip() == '$$':
-            yield Line(text=line, text_type=LineType.Formulation)
-            prev_type = LineType.Formulation
-        else:
-            match = _title_pattern.search(line)
-            if match:
-                level = len(match.group(1))
-                title = match.group(2).strip()
-                # title = trim_internal_title_seq_no(title)
-                l = Line(text=line, text_type=LineType.Title)
-                setattr(l, 'level', level)
-                setattr(l, 'title', title)
-                yield l
-                prev_type = LineType.Title
-                continue
-
-            if line.strip().startswith('>'):
-                l = Line(text=line, text_type=LineType.BlockQuote)
-                yield l
-                prev_type = LineType.BlockQuote
-                continue
-
-            tags = extract_tags(line)
-            if tags:
-                l = Line(text=line, text_type=LineType.Tag)
-                setattr(l, 'tags', tags)
-                yield l
-                prev_type = LineType.Tag
-                continue
-
-            if len(line.strip()) > 10 and len(strip_html_tags(line.strip())) < 2:
-                l = Line(text=line, text_type=LineType.Html)
-                yield l
-                prev_type = LineType.Html
-                continue
-
-            l = Line(line, LineType.Text)
-            yield l
-            prev_type = LineType.Text
+def expect_formula(line: str) -> Optional[Line]:
+    if line.strip() == '$$':
+        return Line(line, LineType.FormulationEnd)
+    return None
 
 
-def is_title(line):
-    return _title_pattern.search(line)
+def expect_formula_end(line: str) -> Optional[Line]:
+    o = expect_formula(line)
+    if o:
+        o.text_type = LineType.FormulationEnd
+    return o
+
+
+_title_pattern = re.compile(r'^ *(#{1,6})\s*(.*)$')
+
+
+def expect_title(line: str) -> Optional[Line]:
+    match = _title_pattern.search(line)
+    if not match:
+        return None
+    level = len(match.group(1))
+    title = match.group(2).strip()
+    suffix = ' ' + '#' * level
+    if title.endswith(suffix):
+        title = title[:-len(suffix)]
+    # title = trim_internal_title_seq_no(title)
+    l = Line(text='#' * level + ' ' + title, text_type=LineType.Title)
+    setattr(l, 'level', level)
+    setattr(l, 'title', title)
+    return l
+
+
+def expect_code(line: str) -> Optional[Line]:
+    if _code_block.search(line) or _code_block_beg.search(line):
+        return Line(line, LineType.Code)
+    return None
+
+
+def expect_code_end(line):
+    if _code_block.search(line):
+        return Line(line, LineType.CodeEnd)
+    return None
+
+
+def expect_blockquote(line: str) -> Optional[Line]:
+    if not line.strip().startswith('>'):
+        return None
+    return Line(text=line, text_type=LineType.BlockQuote)
+
+
+def expect_tag(line: str) -> Optional[Line]:
+    tags = extract_tags(line)
+    if not tags:
+        return None
+    l = Line(text=line, text_type=LineType.Tag)
+    setattr(l, 'tags', tags)
+    return l
+
+
+def expect_html(line: str) -> Optional[Line]:
+    if len(line.strip()) > 10 and len(strip_html_tags(line.strip())) < 2:
+        return Line(text=line, text_type=LineType.Html)
+    return None
 
 
 _normalize_char = {
@@ -224,21 +164,6 @@ _normalize_char = {
 def regular_char(text):
     text = ''.join(_normalize_char.get(c, c) for c in text)
     return text
-
-
-def zoom_img(line, ratio=33):
-    acc = []
-    while line:
-        m = re.search(r"(.*?)!\[img]\((https://pic[0-9]\.zhimg\.com/80/v2-[a-z0-9]{4,40}_1440w\.jpg)\)", line)
-        if not m:
-            acc.append(line)
-            break
-
-        acc.append(m.group(1))
-        acc.append(f'<img src="{m.group(2)}" alt="img" style="zoom:{ratio}%;" />\n\n')
-        line = line[len(m.group(0)):]
-
-    return "".join(acc)
 
 
 def remove_zhihu_redirect_url(line):
@@ -319,26 +244,15 @@ def remark_title_seq_no(lines):
         if level in (2, 3, 4, 5):
             seq = leveled_seq_no[level]
             if title in ("参考文献", "参考", "前言", "继续阅读", "习题", "本章概要"):
-                line.text = f"{'#' * level} {title}"
+                line.remain = f"{'#' * level} {title}"
                 continue
 
             seq_no = seq - 1
             if seq_no < len(level2seq[level]):
-                line.text = f"{'#' * level} {level2seq[level][seq_no]} {title.strip()}"
+                line.remain = f"{'#' * level} {level2seq[level][seq_no]} {title.strip()}"
                 continue
 
-        line.text = f"{'#' * level} {title.strip()}"
-
-
-def expect_title(line):
-    try:
-        level, remain = expect('^#{1,6}', line)
-        c0, remain = expect('[^#]', remain)
-        while expect(f' {level}$', remain):
-            remain = remain[:-len(level)-1]
-        return level + c0 + remain, ""
-    except:
-        return None
+        line.remain = f"{'#' * level} {title.strip()}"
 
 
 if __name__ == '__main__':

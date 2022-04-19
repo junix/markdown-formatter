@@ -68,7 +68,7 @@ def format_content(lines, relabel=True):
             x = remove_zhihu_redirect_url(x)
             x = remove_useless_links(x)
             seg.text = x
-        line.text = join_segs(*segs)
+        line.remain = join_segs(*segs)
 
     if relabel:
         remark_title_seq_no(lines)
@@ -93,7 +93,7 @@ def main():
         #     print(l)
         lines = format_content(lines, relabel=options.relabel)
         tags = seek_tags(lines)
-        content = '\n'.join([x.text for x in lines])
+        content = '\n'.join([x.remain for x in lines])
         if not tags:
             new_path = dump(file, content)
         else:
